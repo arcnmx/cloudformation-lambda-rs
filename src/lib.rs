@@ -9,7 +9,7 @@ extern crate url;
 extern crate url_serde;
 
 pub use crowbar::{Value, Context};
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use url::Url;
 
 pub type Error = Box<::std::error::Error>;
@@ -41,6 +41,14 @@ impl CloudFormationResponse {
         CloudFormationResponse {
             physical_resource_id: physical_resource_id,
             data: Default::default(),
+        }
+    }
+
+    pub fn convert_data<T: Serialize>(data: T) -> Result<Map, serde_json::Error> {
+        match serde_json::value::to_value(data) {
+            Ok(Value::Object(map)) => Ok(map),
+            Ok(..) => Err(<serde_json::Error as serde::ser::Error>::custom("JSON serialization did not result in an object")),
+            Err(err) => Err(err),
         }
     }
 }
