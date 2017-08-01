@@ -6,6 +6,7 @@ extern crate unreachable;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+#[macro_use]
 extern crate serde;
 extern crate crowbar;
 extern crate hyper;

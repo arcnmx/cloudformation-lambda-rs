@@ -4,7 +4,8 @@ use std::iter::FromIterator;
 use std::hash::Hash;
 use std::borrow::Borrow;
 use serde;
-use serde::de::Error;
+use serde::de::{Deserialize, Deserializer, Error, Visitor};
+use serde::ser::{Serialize, Serializer};
 use serde_json::{self, Value};
 use unreachable::unreachable;
 
@@ -31,11 +32,11 @@ impl Map {
         &mut self.0
     }
 
-    pub fn deserialize_into<'de, T: serde::Deserialize<'de>>(&'de self) -> Result<T, serde_json::Error> {
+    pub fn deserialize_into<'de, T: Deserialize<'de>>(&'de self) -> Result<T, serde_json::Error> {
         T::deserialize(&self.0)
     }
 
-    pub fn serialize_from<T: serde::Serialize>(t: T) -> Result<Self, serde_json::Error> {
+    pub fn serialize_from<T: Serialize>(t: T) -> Result<Self, serde_json::Error> {
         serde_json::value::to_value(t).and_then(Self::from_value)
     }
 
@@ -104,18 +105,44 @@ impl fmt::Debug for Map {
     }
 }
 
-impl serde::Serialize for Map {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        serde::Serialize::serialize(&self.0, s)
+impl Serialize for Map {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Serialize::serialize(&self.0, s)
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Map {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        match serde::Deserialize::deserialize(d) {
+impl<'de> Deserialize<'de> for Map {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        match Deserialize::deserialize(d) {
             Ok(value) => Self::from_value(value),
             Err(err) => Err(err),
         }
+    }
+}
+
+impl<'de> Deserializer<'de> for &'de Map {
+    type Error = serde_json::Error;
+
+    fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.value_ref().deserialize_any(visitor)
+    }
+
+    fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.value_ref().deserialize_option(visitor)
+    }
+
+    fn deserialize_enum<V: Visitor<'de>>(self, name: &'static str, variants: &'static [&'static str], visitor: V) -> Result<V::Value, Self::Error> {
+        self.value_ref().deserialize_enum(name, variants, visitor)
+    }
+
+    fn deserialize_newtype_struct<V: Visitor<'de>>(self, name: &'static str, visitor: V) -> Result<V::Value, Self::Error> {
+        self.value_ref().deserialize_newtype_struct(name, visitor)
+    }
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
+        byte_buf unit unit_struct seq tuple tuple_struct map struct identifier
+        ignored_any
     }
 }
 
