@@ -128,17 +128,20 @@ fn provision<T: CloudFormationResource>(resource: T, mut request: model::CloudFo
             resource_properties: request.resource_properties,
         };
 
-        match (request.request_type, &mut request.physical_resource_id) {
-            (model::RequestType::Delete, ref mut physical_resource_id @ &mut Some(..)) if physical_resource_id.as_ref().map(|s| &s[..]) == Some(PHYSICAL_RESOURCE_ID_FAILURE) =>
+        match (request.request_type, request.physical_resource_id) {
+            (model::RequestType::Delete, ref mut physical_resource_id) if physical_resource_id.as_ref().map(|s| &s[..]) == Some(PHYSICAL_RESOURCE_ID_FAILURE) =>
                 Ok(CloudFormationResponse::empty(physical_resource_id.take().unwrap())),
-            (model::RequestType::Create, &mut None) =>
-                resource.create(context, req).map_err(|e| e.to_string()),
-            (model::RequestType::Update, ref mut physical_resource_id @ &mut Some(..)) =>
-                resource.update(context, req, physical_resource_id.take().unwrap(), request.old_resource_properties).map_err(|e| e.to_string()),
-            (model::RequestType::Delete, &mut Some(ref physical_resource_id)) =>
-                resource.delete(context, req, physical_resource_id).map_err(|e| e.to_string()).map(|_| Default::default()),
-            (model::RequestType::Create, &mut Some(ref physical_resource_id)) => Err(format!("Unexpected physical_resource_id {}", physical_resource_id)),
-            (_, &mut None) => Err("physical_resource_id expected".into()),
+            (model::RequestType::Create, None) =>
+                resource.create(context, req).map_err(|e| e.to_string()).map_err(|e| (e, PHYSICAL_RESOURCE_ID_FAILURE.into())),
+            (model::RequestType::Update, Some(physical_resource_id)) =>
+                resource.update(context, req, physical_resource_id.clone(), request.old_resource_properties).map_err(|e| (e.to_string(), physical_resource_id)),
+            (model::RequestType::Delete, Some(physical_resource_id)) =>
+                match resource.delete(context, req, &physical_resource_id) {
+                    Ok(_) => Ok(CloudFormationResponse::empty(physical_resource_id)),
+                    Err(e) => Err((e.to_string(), physical_resource_id)),
+                },
+            (model::RequestType::Create, Some(physical_resource_id)) => Err((format!("Unexpected physical_resource_id {}", physical_resource_id), physical_resource_id)),
+            (_, None) => Err(("physical_resource_id expected".into(), PHYSICAL_RESOURCE_ID_FAILURE.into())),
         }
     };
 
@@ -152,10 +155,10 @@ fn provision<T: CloudFormationResource>(resource: T, mut request: model::CloudFo
             logical_resource_id: request.logical_resource_id,
             data: res.data,
         },
-        Err(err) => model::CloudFormationResponse {
+        Err((err, physical_resource_id)) => model::CloudFormationResponse {
             status: model::Status::Failed,
             reason: Some(err.to_string()),
-            physical_resource_id: request.physical_resource_id.unwrap_or_else(|| PHYSICAL_RESOURCE_ID_FAILURE.into()),
+            physical_resource_id: physical_resource_id,
             stack_id: request.stack_id,
             request_id: request.request_id,
             logical_resource_id: request.logical_resource_id,
