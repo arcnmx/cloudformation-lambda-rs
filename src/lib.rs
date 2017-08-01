@@ -2,6 +2,7 @@
 extern crate log;
 #[cfg(feature = "env_logger")]
 extern crate env_logger;
+extern crate unreachable;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
@@ -13,14 +14,15 @@ extern crate url;
 extern crate url_serde;
 
 pub use crowbar::{Value, Context};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize};
 use url::Url;
 
 pub type Error = Box<::std::error::Error>;
 
+mod map;
 mod response;
 pub mod model;
-pub use model::Map;
+pub use map::Map;
 
 const PHYSICAL_RESOURCE_ID_FAILURE: &'static str = "FAILURE";
 const SERVICE_TOKEN_KEY: &'static str = "ServiceToken";
@@ -45,14 +47,6 @@ impl CloudFormationResponse {
         CloudFormationResponse {
             physical_resource_id: physical_resource_id,
             data: Default::default(),
-        }
-    }
-
-    pub fn convert_data<T: Serialize>(data: T) -> Result<Map, serde_json::Error> {
-        match serde_json::value::to_value(data) {
-            Ok(Value::Object(map)) => Ok(map),
-            Ok(..) => Err(<serde_json::Error as serde::ser::Error>::custom("JSON serialization did not result in an object")),
-            Err(err) => Err(err),
         }
     }
 }

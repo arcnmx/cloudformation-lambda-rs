@@ -1,9 +1,6 @@
-use crowbar::Value;
-use serde_json;
 use url_serde;
 use url::Url;
-
-pub type Map = serde_json::Map<String, Value>;
+use Map;
 
 #[derive(Deserialize, Debug)]
 pub enum RequestType {
