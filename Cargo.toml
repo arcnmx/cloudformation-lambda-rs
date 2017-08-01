@@ -12,6 +12,11 @@ hyper = "0.10"
 hyper-native-tls = "0.2"
 url = "1.5"
 url_serde = "0.2"
+log = "0.3"
+env_logger = { version = "0.4", optional = true, default-features = false }
 
 [dev-dependencies]
 cpython = { version = "0.1", default-features = false, features = ["python3-sys"] }
+
+[features]
+default = ["env_logger"]

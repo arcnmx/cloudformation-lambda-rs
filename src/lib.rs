@@ -1,4 +1,8 @@
 #[macro_use]
+extern crate log;
+#[cfg(feature = "env_logger")]
+extern crate env_logger;
+#[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 extern crate serde;
@@ -65,12 +69,28 @@ pub fn decode_event(event: Value) -> Result<model::CloudFormationRequest, serde_
     model::CloudFormationRequest::deserialize(event)
 }
 
+#[cfg(feature = "env_logger")]
+#[inline]
+pub fn logger_init() {
+    if let Err(err) = env_logger::init() {
+        println!("env_logger failed: {:?}", err);
+    }
+}
+
+#[cfg(not(any(feature = "env_logger")))]
+#[inline]
+pub fn logger_init() { }
+
 pub fn handle<T: CloudFormationResource>(resource: T, request: model::CloudFormationRequest, context: Context) -> Result<(), Error> {
+    trace!("Request {:?}", request);
     let (response, url) = provision(resource, request, context);
+    trace!("Response {:?}", response);
     response::send(url, response)
 }
 
 pub fn unhandled(request: model::CloudFormationRequest, _context: Context) -> Result<(), Error> {
+    warn!("Unhandled request {:?}", request);
+
     let response = match (request.request_type, request.physical_resource_id) {
         (model::RequestType::Delete, ref mut physical_resource_id) if physical_resource_id.as_ref().map(|s| &s[..]) == Some(PHYSICAL_RESOURCE_ID_FAILURE) => model::CloudFormationResponse {
             status: model::Status::Success,
@@ -148,6 +168,7 @@ fn provision<T: CloudFormationResource>(resource: T, mut request: model::CloudFo
 macro_rules! cloudformation {
     ($($name:expr => $target:expr,)*) => {
         (|event: $crate::Value, context: $crate::Context| -> Result<(), $crate::Error> {
+            $crate::logger_init();
             let request = $crate::decode_event(event)?;
             match &request.resource_type[..] {
             $(
