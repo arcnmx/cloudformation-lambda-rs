@@ -32,6 +32,7 @@ pub struct CloudFormationRequest {
     #[serde(default)]
     pub physical_resource_id: Option<String>,
     pub resource_properties: Map,
+    #[serde(default)]
     pub old_resource_properties: Map,
 }
 
